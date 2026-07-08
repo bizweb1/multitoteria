@@ -146,6 +146,13 @@
   }
   @keyframes idlePulse{0%,100%{box-shadow:0 8px 20px rgba(217,164,65,0.35), 0 4px 8px rgba(0,0,0,0.35);}50%{box-shadow:0 8px 20px rgba(217,164,65,0.5), 0 0 18px 4px rgba(217,164,65,0.28);}}
   .btn-call:disabled{opacity:0.45;animation:none;}
+  .btn-auto{
+    font-weight:700;font-size:15px;padding:14px 20px;border-radius:999px;
+    border:2px solid var(--gold);background:rgba(217,164,65,0.06);color:var(--gold-light);
+    min-height:56px;transition:transform 150ms ease, background 150ms ease;
+  }
+  .btn-auto:active{transform:scale(0.96);}
+  .btn-auto.active{background:rgba(217,164,65,0.28);box-shadow:0 0 14px rgba(217,164,65,0.4);}
   .waiting-note{
     font-family:system-ui,sans-serif;font-size:13px;color:var(--cream);opacity:0.6;
     text-align:center;padding:14px 0;
@@ -330,6 +337,10 @@
         <label for="hostNameInput">Tu nombre</label>
         <input id="hostNameInput" type="text" placeholder="Tu nombre" maxlength="24" />
       </div>
+      <div class="field">
+        <label for="hostBetInput">Apuesta (opcional)</label>
+        <input id="hostBetInput" type="number" min="0" step="1" placeholder="$0" />
+      </div>
       <button id="btnCreateRoom" class="btn-primary">Crear partida</button>
     </div>
 
@@ -384,6 +395,7 @@
 
     <div id="hostControls" class="controls hidden">
       <button id="btnCall" class="btn-call">🔊 Cantar carta</button>
+      <button id="btnAuto" class="btn-auto">▶ Automático</button>
     </div>
     <div id="guestWaitNote" class="waiting-note hidden">El host está cantando las cartas…</div>
 
@@ -583,6 +595,9 @@ let myName = 'Jugador';
 let chatOpen = false;
 let renderedChatCount = 0;
 let unreadChatCount = 0;
+let autoplay = false;
+let autoplayTimer = null;
+const AUTOPLAY_INTERVAL_MS = 5500;
 
 const els = {
   screenLanding: document.getElementById('screenLanding'),
@@ -605,6 +620,7 @@ const els = {
   hostControls: document.getElementById('hostControls'),
   guestWaitNote: document.getElementById('guestWaitNote'),
   btnCall: document.getElementById('btnCall'),
+  btnAuto: document.getElementById('btnAuto'),
   autoMarcarCheck: document.getElementById('autoMarcarCheck'),
   statusBanner: document.getElementById('statusBanner'),
   checkpointsGrid: document.getElementById('checkpointsGrid'),
@@ -790,6 +806,10 @@ function subscribeRoom(){
 
     renderCheckpoints();
 
+    if(data.status === 'ended' && autoplay){
+      stopAutoplay();
+    }
+
     els.btnCall.disabled = data.calledIndex >= data.deckOrder.length || data.status === 'ended';
   });
 }
@@ -967,6 +987,10 @@ els.btnCall.addEventListener('click', async () => {
     audioUnlocked = true;
     els.audioUnlockRow.classList.add('hidden');
   }
+  await callNextCard();
+});
+
+async function callNextCard(){
   if(!lastRoomData) return;
   const nextIndex = lastRoomData.calledIndex + 1;
   if(nextIndex > lastRoomData.deckOrder.length) return;
@@ -974,6 +998,39 @@ els.btnCall.addEventListener('click', async () => {
   try{
     await update(ref(db, 'rooms/' + roomCode), { calledIndex: nextIndex });
   }catch(e){ console.error(e); }
+}
+
+function stopAutoplay(){
+  autoplay = false;
+  clearTimeout(autoplayTimer);
+  els.btnAuto.classList.remove('active');
+  els.btnAuto.textContent = '▶ Automático';
+}
+
+function autoplayTick(){
+  if(!autoplay) return;
+  if(!lastRoomData || lastRoomData.calledIndex >= lastRoomData.deckOrder.length || lastRoomData.status === 'ended'){
+    stopAutoplay();
+    return;
+  }
+  callNextCard().finally(() => {
+    if(autoplay) autoplayTimer = setTimeout(autoplayTick, AUTOPLAY_INTERVAL_MS);
+  });
+}
+
+els.btnAuto.addEventListener('click', () => {
+  if(!audioUnlocked){
+    audioUnlocked = true;
+    els.audioUnlockRow.classList.add('hidden');
+  }
+  if(autoplay){
+    stopAutoplay();
+  } else {
+    autoplay = true;
+    els.btnAuto.classList.add('active');
+    els.btnAuto.textContent = '⏸ Pausar';
+    autoplayTick();
+  }
 });
 
 function renderCheckpoints(){
