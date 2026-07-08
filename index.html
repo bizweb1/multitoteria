@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lotería — Partida en Vivo</title>
+<style>
+  :root{
+    --bg:#5A1D22; --bg-dark:#3F1417; --gold:#D9A441; --gold-light:#F5C76A;
+    --cream:#F5E8D3; --accent:#C98B3C; --ink:#3A1108;
+    --shadow-warm: rgba(35,12,10,0.55);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    min-height:100vh;
+    background:
+      radial-gradient(ellipse 120% 60% at 50% -10%, rgba(245,199,106,0.10), transparent 55%),
+      radial-gradient(circle at 50% 15%, var(--bg) 0%, var(--bg) 40%, var(--bg-dark) 100%);
+    background-attachment:fixed;
+    color:var(--cream);
+    font-family:Georgia,"Times New Roman",serif;
+    padding-bottom:40px;
+    position:relative;overflow-x:hidden;
+  }
+  body::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    box-shadow: inset 0 0 120px 40px rgba(20,6,6,0.55);
+  }
+  .scallop{
+    position:relative;z-index:1;height:16px;width:100%;
+    background:radial-gradient(circle, transparent 65%, var(--gold) 66%) 0 0/24px 24px repeat-x;
+    opacity:0.12;
+  }
+  header{position:relative;z-index:1;text-align:center;padding:22px 16px 4px;}
+  h1{
+    font-size:42px;letter-spacing:5px;text-transform:uppercase;margin:0;
+    background:linear-gradient(180deg, var(--gold-light) 10%, var(--gold) 55%, var(--accent) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 2px 6px rgba(217,164,65,0.35)) drop-shadow(0 1px 0 rgba(0,0,0,0.5));
+  }
+  .subtitle{
+    font-family:Georgia,serif;font-style:italic;font-size:15px;color:var(--gold-light);
+    margin:8px 0 0;opacity:0.9;
+  }
+  .wrap{position:relative;z-index:1;max-width:460px;margin:0 auto;padding:0 18px;}
+  .landing-card{
+    margin-top:26px;padding:24px 20px;border-radius:20px;
+    background:linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.04)),
+      radial-gradient(ellipse 100% 60% at 50% 0%, #6B2429, var(--bg-dark));
+    border:1px solid rgba(217,164,65,0.4);
+    box-shadow:0 16px 36px rgba(0,0,0,0.4);
+  }
+  .landing-title{font-size:20px;color:var(--gold-light);margin:0 0 14px;text-align:center;}
+  .field{width:100%;margin-bottom:12px;}
+  .field label{
+    display:block;font-family:system-ui,sans-serif;font-size:12px;color:var(--cream);
+    opacity:0.7;margin-bottom:5px;letter-spacing:0.3px;
+  }
+  .field input{
+    width:100%;font-family:Georgia,serif;font-size:17px;font-weight:600;
+    background:rgba(0,0,0,0.2);border:1px solid rgba(217,164,65,0.35);border-radius:10px;
+    color:var(--cream);padding:12px 14px;letter-spacing:1px;
+  }
+  .field input:focus{outline:none;border-color:var(--gold);}
+  .field input.code-input{text-transform:uppercase;text-align:center;letter-spacing:4px;font-size:20px;}
+  .btn-primary{
+    width:100%;font-family:system-ui,sans-serif;font-weight:800;font-size:18px;
+    padding:16px;border-radius:999px;border:none;
+    background:linear-gradient(180deg,var(--gold-light),var(--accent));color:var(--ink);
+    box-shadow:0 8px 20px rgba(217,164,65,0.35), 0 4px 8px rgba(0,0,0,0.35);
+    min-height:56px;transition:transform 150ms ease;cursor:pointer;
+  }
+  .btn-primary:active{transform:scale(0.97);}
+  .btn-primary:disabled{opacity:0.5;}
+  .btn-ghost{
+    width:100%;font-family:system-ui,sans-serif;font-weight:700;font-size:15px;
+    padding:13px;border-radius:999px;border:2px solid var(--gold);
+    background:rgba(217,164,65,0.06);color:var(--gold-light);
+    min-height:50px;cursor:pointer;transition:transform 150ms ease;
+  }
+  .btn-ghost:active{transform:scale(0.97);}
+  .divider-or{
+    text-align:center;font-family:system-ui,sans-serif;font-size:12px;color:var(--cream);
+    opacity:0.5;margin:18px 0;position:relative;
+  }
+  .divider-or::before,.divider-or::after{
+    content:"";position:absolute;top:50%;width:38%;height:1px;background:rgba(217,164,65,0.3);
+  }
+  .divider-or::before{left:0;} .divider-or::after{right:0;}
+  .error-msg{
+    font-family:system-ui,sans-serif;font-size:13px;color:#E8A78A;text-align:center;
+    margin-top:10px;min-height:16px;
+  }
+  .hidden{display:none !important;}
+  .room-bar{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    margin-top:18px;padding:12px 16px;border-radius:14px;
+    background:rgba(0,0,0,0.18);border:1px solid rgba(217,164,65,0.35);
+    font-family:system-ui,sans-serif;
+  }
+  .room-code-label{font-size:11px;color:var(--cream);opacity:0.6;letter-spacing:1px;}
+  .room-code{font-size:20px;font-weight:800;color:var(--gold-light);letter-spacing:3px;}
+  .btn-copy{
+    font-family:system-ui,sans-serif;font-size:13px;font-weight:700;
+    padding:9px 14px;border-radius:999px;border:1px solid rgba(217,164,65,0.5);
+    background:rgba(217,164,65,0.1);color:var(--gold-light);cursor:pointer;
+  }
+  .players-count{font-size:13px;color:var(--gold-light);opacity:0.85;white-space:nowrap;}
+  .spotlight{display:flex;flex-direction:column;align-items:center;padding:20px 0 6px;}
+  .burst-wrap{position:relative;width:280px;height:373px;max-width:88vw;max-height:calc(88vw * 1.333);display:flex;align-items:center;justify-content:center;}
+  .burst{position:absolute;inset:-36px;background:repeating-conic-gradient(var(--gold) 0deg 9deg, transparent 9deg 18deg);border-radius:50%;opacity:0.09;}
+  .glow-ring{position:absolute;inset:-26px;border-radius:26px;background:radial-gradient(circle, rgba(245,199,106,0.4), transparent 68%);filter:blur(14px);opacity:0.9;}
+  .card-frame{position:relative;width:100%;height:100%;animation:float 4.5s ease-in-out infinite;transition:transform 300ms cubic-bezier(.34,1.56,.64,1);}
+  .card-frame.pulse{animation:cardCall 320ms cubic-bezier(.34,1.56,.64,1);}
+  @keyframes float{0%,100%{transform:translateY(0);}50%{transform:translateY(-7px);}}
+  @keyframes cardCall{0%{transform:scale(0.96);}60%{transform:scale(1.03);}100%{transform:scale(1);}}
+  .spotlight-img{position:relative;width:100%;height:100%;object-fit:cover;border-radius:20px;border:5px solid var(--cream);box-shadow:0 22px 42px var(--shadow-warm), 0 0 0 1px rgba(217,164,65,0.45);}
+  .spotlight-empty{
+    position:relative;width:100%;height:100%;border-radius:20px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;color:var(--gold-light);font-family:system-ui,sans-serif;
+    background:radial-gradient(circle at 50% 40%, rgba(217,164,65,0.08), transparent 70%);
+    box-shadow:inset 0 0 0 1px rgba(217,164,65,0.22), inset 0 8px 30px rgba(0,0,0,0.35);
+  }
+  .spotlight-meta{margin-top:14px;text-align:center;}
+  .spotlight-name{font-size:26px;font-weight:700;}
+  .deck-badge{
+    display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:7px 18px;border-radius:999px;
+    background:linear-gradient(180deg, rgba(245,199,106,0.18), rgba(217,164,65,0.10));
+    border:1px solid rgba(217,164,65,0.5);font-family:system-ui,sans-serif;font-size:13px;font-weight:600;color:var(--gold-light);
+  }
+  .deck-badge .dot{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 6px var(--gold);}
+  .controls{display:flex;gap:10px;justify-content:center;padding:16px 0;flex-wrap:wrap;}
+  button{cursor:pointer;font-family:system-ui,sans-serif;-webkit-tap-highlight-color:transparent;}
+  .btn-call{
+    font-weight:800;font-size:19px;padding:16px 28px;border-radius:999px;border:none;
+    background:linear-gradient(180deg,var(--gold-light),var(--accent));color:var(--ink);
+    box-shadow:0 8px 20px rgba(217,164,65,0.35), 0 4px 8px rgba(0,0,0,0.35);min-height:56px;
+    animation:idlePulse 3.2s ease-in-out infinite;
+  }
+  @keyframes idlePulse{0%,100%{box-shadow:0 8px 20px rgba(217,164,65,0.35), 0 4px 8px rgba(0,0,0,0.35);}50%{box-shadow:0 8px 20px rgba(217,164,65,0.5), 0 0 18px 4px rgba(217,164,65,0.28);}}
+  .btn-call:disabled{opacity:0.45;animation:none;}
+  .waiting-note{
+    font-family:system-ui,sans-serif;font-size:13px;color:var(--cream);opacity:0.6;
+    text-align:center;padding:14px 0;
+  }
+  .automarcar-row{
+    display:flex;align-items:center;justify-content:center;gap:8px;
+    font-family:system-ui,sans-serif;font-size:14px;color:var(--gold-light);padding-bottom:6px;
+  }
+  .automarcar-row input{width:17px;height:17px;accent-color:var(--gold);}
+  .buena-btn{
+    width:100%;font-weight:800;font-size:18px;padding:16px;border-radius:14px;
+    border:2px solid var(--gold);background:rgba(217,164,65,0.1);color:var(--gold-light);
+    margin:6px 0 16px;min-height:56px;transition:transform 150ms ease;
+  }
+  .buena-btn:active{transform:scale(0.97);}
+  .status-banner{
+    text-align:center;margin:0 0 14px;padding:14px;border-radius:12px;
+    font-family:system-ui,sans-serif;font-weight:700;font-size:15px;display:none;
+  }
+  .status-banner.show{display:block;}
+  .status-banner.checking{background:rgba(217,164,65,0.15);color:var(--gold-light);border:1px solid rgba(217,164,65,0.4);}
+  .status-banner.valid{background:linear-gradient(180deg,var(--gold-light),var(--accent));color:var(--ink);}
+  .status-banner.invalid{background:rgba(200,90,70,0.15);color:#E8A78A;border:1px solid rgba(200,90,70,0.4);}
+  .board-grid{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:10px;
+    background:linear-gradient(180deg, rgba(0,0,0,0.2), rgba(0,0,0,0.05)),
+      radial-gradient(circle at 50% 0%, #43120F, #2A0C0C);
+    padding:14px;border-radius:20px;border:1px solid rgba(217,164,65,0.32);
+    box-shadow:inset 0 3px 14px rgba(0,0,0,0.5), 0 12px 28px rgba(0,0,0,0.4);
+  }
+  .cell{position:relative;padding:0;border:1px solid rgba(245,232,211,0.12);border-radius:10px;overflow:hidden;background:none;aspect-ratio:3/4;box-shadow:0 4px 10px rgba(0,0,0,0.35);transition:transform 150ms ease;}
+  .cell:active{transform:scale(0.96);}
+  .cell img{width:100%;height:100%;object-fit:cover;display:block;}
+  .cell.uncalled img{filter:grayscale(35%) brightness(0.75);}
+  .cell.uncalled{cursor:default;}
+  .mark-overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(58,17,8,0.35);}
+  .mark-overlay.show{display:flex;}
+  .mark-bean{width:62%;height:62%;border-radius:50%;background:radial-gradient(circle at 35% 30%, var(--gold-light), var(--accent));border:3px solid var(--cream);box-shadow:0 3px 8px rgba(0,0,0,0.4);}
+  .leave-row{text-align:center;padding:20px 0 4px;}
+  .btn-leave{
+    font-family:system-ui,sans-serif;font-size:13px;color:var(--cream);opacity:0.55;
+    background:none;border:none;text-decoration:underline;cursor:pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="scallop"></div>
+<header>
+  <h1>Lotería</h1>
+  <p class="subtitle">Partida en vivo</p>
+</header>
+
+<div class="wrap">
+
+  <div id="screenLanding">
+    <div class="landing-card">
+      <div class="landing-title">🎲 Crear partida</div>
+      <div class="field">
+        <label for="hostNameInput">Tu nombre</label>
+        <input id="hostNameInput" type="text" placeholder="Tu nombre" maxlength="24" />
+      </div>
+      <button id="btnCreateRoom" class="btn-primary">Crear partida</button>
+    </div>
+
+    <div class="divider-or">O</div>
+
+    <div class="landing-card">
+      <div class="landing-title">🔗 Unirse a una partida</div>
+      <div class="field">
+        <label for="joinCodeInput">Código de la partida</label>
+        <input id="joinCodeInput" type="text" class="code-input" placeholder="X7K9P2" maxlength="6" />
+      </div>
+      <div class="field">
+        <label for="joinNameInput">Tu nombre</label>
+        <input id="joinNameInput" type="text" placeholder="Tu nombre" maxlength="24" />
+      </div>
+      <button id="btnJoinRoom" class="btn-ghost">Entrar</button>
+    </div>
+    <div id="landingError" class="error-msg"></div>
+  </div>
+
+  <div id="screenGame" class="hidden">
+    <div class="room-bar">
+      <div>
+        <div class="room-code-label">CÓDIGO</div>
+        <div id="roomCodeDisplay" class="room-code">——————</div>
+      </div>
+      <div class="players-count" id="playersCount">1 jugador</div>
+      <button id="btnCopyLink" class="btn-copy">Copiar enlace</button>
+    </div>
+
+    <section class="spotlight">
+      <div class="burst-wrap">
+        <div class="burst"></div>
+        <div class="glow-ring"></div>
+        <div id="cardFrame" class="card-frame">
+          <img id="spotlightImg" class="spotlight-img" style="display:none;" />
+          <div id="spotlightEmpty" class="spotlight-empty">
+            <span style="font-size:38px;">🎴</span>
+            <span style="font-size:13px;margin-top:6px;" id="spotlightWaitText">Esperando al host…</span>
+          </div>
+        </div>
+      </div>
+      <div class="spotlight-meta">
+        <div id="spotlightName" class="spotlight-name">—</div>
+        <div class="deck-badge"><span class="dot"></span><span id="deckCount">54 Cartas Restantes</span></div>
+      </div>
+    </section>
+
+    <div id="hostControls" class="controls hidden">
+      <button id="btnCall" class="btn-call">🔊 Cantar carta</button>
+    </div>
+    <div id="guestWaitNote" class="waiting-note hidden">El host está cantando las cartas…</div>
+
+    <div class="automarcar-row">
+      <input type="checkbox" id="autoMarcarCheck" />
+      <label for="autoMarcarCheck">☑ Auto marcar</label>
+    </div>
+
+    <div id="statusBanner" class="status-banner"></div>
+
+    <button id="btnBuena" class="buena-btn">🎉 ¡BUENA!</button>
+
+    <section class="board-wrap">
+      <div id="boardGrid" class="board-grid"></div>
+    </section>
+
+    <div class="leave-row">
+      <button id="btnLeave" class="btn-leave">Salir de la partida</button>
+    </div>
+  </div>
+
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, signInAnonymously, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getDatabase, ref, set, get, update, onValue, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyDhjHpwU1nRgejKT1kTdvVzjeNwXstcDBA",
+  authDomain: "loteria-multiplayer.firebaseapp.com",
+  databaseURL: "https://loteria-multiplayer-default-rtdb.firebaseio.com/",
+  projectId: "loteria-multiplayer",
+  storageBucket: "loteria-multiplayer.firebasestorage.app",
+  messagingSenderId: "146388670767",
+  appId: "1:146388670767:web:6bf2708977b79a9e36e9da",
+  measurementId: "G-DQ8NS13XC0"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getDatabase(app);
+
+const DECK = [
+  { n: 1, name: "El Gallo", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020141_9d5f3fbd-66a9-4cbf-8aad-1b119bc4b5ac.png" },
+  { n: 2, name: "El Diablo", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020147_e03af85d-2cd1-43ff-813d-b4bdefc99ceb.png" },
+  { n: 3, name: "La Dama", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020151_05e97f7a-da16-4cb3-88e2-7084019122f2.png" },
+  { n: 4, name: "El Catrín", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020157_8b093c4c-b300-45a4-a1dd-b3fa25293071.png" },
+  { n: 5, name: "El Paraguas", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020201_75ff4665-93c6-4513-b8d8-e4b4b25f1533.png" },
+  { n: 6, name: "La Sirena", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020206_72344202-c1e5-4db0-95d8-5eab485915f1.png" },
+  { n: 7, name: "La Escalera", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020211_71805874-e2b5-46aa-bf75-1c779c381393.png" },
+  { n: 8, name: "La Botella", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020215_bab006f2-934b-4c62-bf62-796c195903c1.png" },
+  { n: 9, name: "El Barril", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020220_82034f90-2f00-4c80-ada7-69e0ce349b66.png" },
+  { n: 10, name: "El Árbol", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020225_239cbc94-daab-4aab-b153-7fd4fc0c1608.png" },
+  { n: 11, name: "El Melón", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020229_ededfeec-deaa-44dc-a062-1042285e1fa3.png" },
+  { n: 12, name: "El Valiente", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020233_0709e6fb-ec5a-42e4-9c9e-f6e215ac1e09.png" },
+  { n: 13, name: "El Gorro", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020237_8df20610-b9a1-42ba-8841-5f5dcd0b5406.png" },
+  { n: 14, name: "La Muerte", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020241_203f5207-8f0e-41a4-a4b5-ab584ad734dd.png" },
+  { n: 15, name: "La Pera", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020246_2de60430-abc5-4eaf-b86a-67c58d5757ab.png" },
+  { n: 16, name: "La Bandera", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020249_2ebc4863-4a47-4fc4-9d2b-b506a94552b0.png" },
+  { n: 17, name: "El Bandolón", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020254_f2ce8768-052f-4622-a04b-8390ea36ff5a.png" },
+  { n: 18, name: "El Violoncello", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020258_49dad8d2-78fe-4011-af45-807d855ae6ca.png" },
+  { n: 19, name: "La Garza", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020303_41e30e34-c0e1-4340-aff7-9e662fcfe028.png" },
+  { n: 20, name: "El Pájaro", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020310_129e2321-2f6f-4234-a675-72bc9427c3c2.png" },
+  { n: 21, name: "La Mano", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020317_a0c2e4d5-cf67-40c1-be41-55eaa6829054.png" },
+  { n: 22, name: "La Bota", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020321_42380581-b6bc-4f25-b607-a42bca9992ab.png" },
+  { n: 23, name: "La Luna", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020326_4d36e48f-1094-471e-ba4b-307b938e918d.png" },
+  { n: 24, name: "El Cotorro", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020331_c2634ef3-98e1-4463-ad93-bf55c5263d26.png" },
+  { n: 25, name: "El Borracho", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020335_2a110350-c39c-485b-9dbe-5b5807b38ee3.png" },
+  { n: 26, name: "El Negrito", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_021317_dc38adec-e14d-45de-a6b8-d1a9baa41afd.png" },
+  { n: 27, name: "El Corazón", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020346_d9268976-07e7-40bd-a963-c021c0ec2332.png" },
+  { n: 28, name: "La Sandía", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020350_f70670a3-d463-4dd9-927b-adb2a2cf0fde.png" },
+  { n: 29, name: "El Tambor", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020355_c0cb77c6-8836-42fe-874a-bc8fdc043fa9.png" },
+  { n: 30, name: "El Camarón", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020359_c0d968fa-394c-40ce-88b6-166c1efb5adf.png" },
+  { n: 31, name: "Las Jaras", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020404_7fd4e12c-7a89-4d71-8bb5-ae66d3597f76.png" },
+  { n: 32, name: "El Músico", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020408_263c4eca-5c41-4404-8ce0-111d2c354d34.png" },
+  { n: 33, name: "La Araña", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020419_be94f547-41bd-449b-aa97-37ff298c7ddf.png" },
+  { n: 34, name: "El Soldado", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020423_88e01813-c0d1-45b8-9bf1-1377728a10e4.png" },
+  { n: 35, name: "La Estrella", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020427_9dc8b550-cc67-431b-a9a8-f84ca946e114.png" },
+  { n: 36, name: "El Cazo", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020432_4894f927-f5c6-4ba0-908d-6d51adab2160.png" },
+  { n: 37, name: "El Mundo", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020436_94f3ea5a-0608-4e45-918f-937a6798c81e.png" },
+  { n: 38, name: "El Apache", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020442_c227dceb-45de-46bc-9efc-157098ca68ae.png" },
+  { n: 39, name: "El Nopal", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020447_ded49b2e-3411-490f-b8f6-3fa87ca6c32d.png" },
+  { n: 40, name: "El Alacrán", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020451_30367bcb-4d26-4a8c-8ebe-90172f6316fc.png" },
+  { n: 41, name: "La Rosa", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020457_89535a5b-79e5-4b91-aca6-5c6e64a0f4bc.png" },
+  { n: 42, name: "La Calavera", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020501_20fbdc6f-8f54-46e2-bb11-c8a22da97453.png" },
+  { n: 43, name: "La Campana", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020508_790fdaaa-30b4-4fc1-98e8-4d3048f68875.png" },
+  { n: 44, name: "El Cantarito", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020513_4d99d0d7-f998-4a0b-a591-a8842d757d03.png" },
+  { n: 45, name: "El Venado", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020516_7945af65-110d-4d6c-a7b6-3aa086729385.png" },
+  { n: 46, name: "El Sol", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020521_e3d6f0b6-f188-4cda-a141-fb8ef3486065.png" },
+  { n: 47, name: "La Corona", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020526_506a6b9b-87ef-4374-ab8a-b22e18b662c9.png" },
+  { n: 48, name: "La Chalupa", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020531_cc5dac06-eabb-4794-96bb-08847d77fbfc.png" },
+  { n: 49, name: "El Pino", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020536_19799aeb-4cc2-47e8-987a-24fae90b4834.png" },
+  { n: 50, name: "El Pescado", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020543_d483e06d-ab9b-4d35-8360-434795b58e28.png" },
+  { n: 51, name: "La Palma", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020826_901379ea-b60c-4c30-a85b-3b50b3a8f724.png" },
+  { n: 52, name: "La Maceta", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020835_53212fe1-6dd8-416f-a64d-37976fbe1378.png" },
+  { n: 53, name: "El Arpa", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020841_9716cace-dc33-4d6f-9f3a-751f02d9b96a.png" },
+  { n: 54, name: "La Rana", img: "https://d8j0ntlcm91z4.cloudfront.net/user_3F1JOKelgATrTG0YGIkKCDdzTau/hf_20260708_020845_1fbd86f3-3f54-4c56-aaa1-19c189f8da2d.png" },
+];
+const DECK_BY_N = Object.fromEntries(DECK.map(c => [c.n, c]));
+
+const LINES = [
+  [0,1,2,3],[4,5,6,7],[8,9,10,11],[12,13,14,15],
+  [0,4,8,12],[1,5,9,13],[2,6,10,14],[3,7,11,15],
+  [0,5,10,15],[3,6,9,12],
+];
+
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
+function randomBoard(){
+  return shuffle(DECK).slice(0,16).map(c => c.n);
+}
+function generateRoomCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for(let i=0;i<6;i++) code += chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
+function speak(text){
+  try{
+    if(!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'es-MX'; u.rate = 0.92;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+let uid = null;
+let roomCode = null;
+let isHost = false;
+let myBoard = [];
+let myMarked = new Set();
+let lastRoomData = null;
+let playersCountVal = 1;
+
+const els = {
+  screenLanding: document.getElementById('screenLanding'),
+  screenGame: document.getElementById('screenGame'),
+  hostNameInput: document.getElementById('hostNameInput'),
+  btnCreateRoom: document.getElementById('btnCreateRoom'),
+  joinCodeInput: document.getElementById('joinCodeInput'),
+  joinNameInput: document.getElementById('joinNameInput'),
+  btnJoinRoom: document.getElementById('btnJoinRoom'),
+  landingError: document.getElementById('landingError'),
+  roomCodeDisplay: document.getElementById('roomCodeDisplay'),
+  playersCount: document.getElementById('playersCount'),
+  btnCopyLink: document.getElementById('btnCopyLink'),
+  cardFrame: document.getElementById('cardFrame'),
+  spotlightImg: document.getElementById('spotlightImg'),
+  spotlightEmpty: document.getElementById('spotlightEmpty'),
+  spotlightWaitText: document.getElementById('spotlightWaitText'),
+  spotlightName: document.getElementById('spotlightName'),
+  deckCount: document.getElementById('deckCount'),
+  hostControls: document.getElementById('hostControls'),
+  guestWaitNote: document.getElementById('guestWaitNote'),
+  btnCall: document.getElementById('btnCall'),
+  autoMarcarCheck: document.getElementById('autoMarcarCheck'),
+  statusBanner: document.getElementById('statusBanner'),
+  btnBuena: document.getElementById('btnBuena'),
+  boardGrid: document.getElementById('boardGrid'),
+  btnLeave: document.getElementById('btnLeave'),
+};
+
+function ensureAuth(){
+  return new Promise((resolve) => {
+    let resolved = false;
+    onAuthStateChanged(auth, (user) => {
+      if(user && !resolved){ resolved = true; uid = user.uid; resolve(); }
+    });
+    signInAnonymously(auth).catch(() => {
+      if(resolved) return;
+      resolved = true;
+      let stored = localStorage.getItem('loteria_guest_id');
+      if(!stored){
+        stored = 'guest-' + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem('loteria_guest_id', stored);
+      }
+      uid = stored;
+      resolve();
+    });
+    setTimeout(() => {
+      if(resolved) return;
+      resolved = true;
+      let stored = localStorage.getItem('loteria_guest_id');
+      if(!stored){
+        stored = 'guest-' + Math.random().toString(36).slice(2, 10);
+        localStorage.setItem('loteria_guest_id', stored);
+      }
+      uid = stored;
+      resolve();
+    }, 2500);
+  });
+}
+
+els.btnCreateRoom.addEventListener('click', async () => {
+  const name = els.hostNameInput.value.trim() || 'Host';
+  els.btnCreateRoom.disabled = true;
+  els.landingError.textContent = '';
+  try{
+    await ensureAuth();
+    let code, roomRef, snap;
+    do{
+      code = generateRoomCode();
+      roomRef = ref(db, 'rooms/' + code);
+      snap = await get(roomRef);
+    } while(snap.exists());
+
+    const deckOrder = shuffle(DECK).map(c => c.n);
+    await set(roomRef, {
+      hostUid: uid,
+      createdAt: serverTimestamp(),
+      deckOrder,
+      calledIndex: 0,
+      status: 'playing',
+      winner: null,
+      buenaClaim: null,
+    });
+
+    myBoard = randomBoard();
+    await set(ref(db, `rooms/${code}/players/${uid}`), {
+      name, board: myBoard, marked: {}, isHost: true, joinedAt: serverTimestamp(),
+    });
+
+    roomCode = code; isHost = true;
+    enterGameScreen();
+  }catch(e){
+    els.landingError.textContent = 'No se pudo crear la partida. Intenta de nuevo.';
+    console.error(e);
+  }
+  els.btnCreateRoom.disabled = false;
+});
+
+els.btnJoinRoom.addEventListener('click', async () => {
+  const code = els.joinCodeInput.value.trim().toUpperCase();
+  const name = els.joinNameInput.value.trim() || 'Jugador';
+  if(code.length !== 6){
+    els.landingError.textContent = 'Ingresa un código de 6 caracteres.';
+    return;
+  }
+  els.btnJoinRoom.disabled = true;
+  els.landingError.textContent = '';
+  try{
+    await ensureAuth();
+    const roomRef = ref(db, 'rooms/' + code);
+    const snap = await get(roomRef);
+    if(!snap.exists()){
+      els.landingError.textContent = 'No se encontró esa partida. Verifica el código.';
+      els.btnJoinRoom.disabled = false;
+      return;
+    }
+    const roomData = snap.val();
+    myBoard = randomBoard();
+    await set(ref(db, `rooms/${code}/players/${uid}`), {
+      name, board: myBoard, marked: {}, isHost: false, joinedAt: serverTimestamp(),
+    });
+    roomCode = code; isHost = (roomData.hostUid === uid);
+    enterGameScreen();
+  }catch(e){
+    els.landingError.textContent = 'No se pudo entrar a la partida. Intenta de nuevo.';
+    console.error(e);
+  }
+  els.btnJoinRoom.disabled = false;
+});
+
+const urlParams = new URLSearchParams(window.location.search);
+const prefillCode = urlParams.get('code');
+if(prefillCode) els.joinCodeInput.value = prefillCode.toUpperCase();
+
+function enterGameScreen(){
+  els.screenLanding.classList.add('hidden');
+  els.screenGame.classList.remove('hidden');
+  els.roomCodeDisplay.textContent = roomCode;
+  els.hostControls.classList.toggle('hidden', !isHost);
+  els.guestWaitNote.classList.toggle('hidden', isHost);
+  renderBoard();
+  subscribeRoom();
+  subscribePlayers();
+}
+
+function subscribeRoom(){
+  const roomRef = ref(db, 'rooms/' + roomCode);
+  onValue(roomRef, (snap) => {
+    if(!snap.exists()) return;
+    const data = snap.val();
+    if(!data.deckOrder) return;
+    const prevIndex = lastRoomData ? lastRoomData.calledIndex : 0;
+    lastRoomData = data;
+
+    renderSpotlight(data);
+
+    if(data.calledIndex > prevIndex){
+      const newCard = DECK_BY_N[data.deckOrder[data.calledIndex - 1]];
+      if(newCard){
+        speak(newCard.name);
+        els.cardFrame.classList.remove('pulse');
+        void els.cardFrame.offsetWidth;
+        els.cardFrame.classList.add('pulse');
+      }
+      if(els.autoMarcarCheck.checked){
+        autoMarkCalled(data);
+      }
+      renderBoard();
+    }
+
+    if(data.buenaClaim){
+      showStatusBanner(data.buenaClaim);
+    } else {
+      els.statusBanner.classList.remove('show');
+    }
+
+    els.btnCall.disabled = data.calledIndex >= data.deckOrder.length || data.status === 'ended';
+  });
+}
+
+function subscribePlayers(){
+  const playersRef = ref(db, `rooms/${roomCode}/players`);
+  onValue(playersRef, (snap) => {
+    const val = snap.val() || {};
+    playersCountVal = Object.keys(val).length;
+    els.playersCount.textContent = `${playersCountVal} jugador${playersCountVal === 1 ? '' : 'es'}`;
+  });
+}
+
+function renderSpotlight(data){
+  const total = data.deckOrder.length;
+  const left = total - data.calledIndex;
+  els.deckCount.textContent = `${left} Cartas Restantes`;
+  if(data.calledIndex > 0){
+    const card = DECK_BY_N[data.deckOrder[data.calledIndex - 1]];
+    els.spotlightImg.src = card.img;
+    els.spotlightImg.alt = card.name;
+    els.spotlightImg.style.display = 'block';
+    els.spotlightEmpty.style.display = 'none';
+    els.spotlightName.textContent = `${card.n}. ${card.name}`;
+  } else {
+    els.spotlightImg.style.display = 'none';
+    els.spotlightEmpty.style.display = 'flex';
+    els.spotlightWaitText.textContent = isHost ? 'Presiona "Cantar carta"' : 'Esperando al host…';
+    els.spotlightName.textContent = '—';
+  }
+}
+
+function autoMarkCalled(data){
+  const calledSet = new Set(data.deckOrder.slice(0, data.calledIndex));
+  let changed = false;
+  myBoard.forEach(n => {
+    if(calledSet.has(n) && !myMarked.has(n)){
+      myMarked.add(n); changed = true;
+    }
+  });
+  if(changed) syncMarked();
+}
+
+function syncMarked(){
+  const marksObj = {};
+  myMarked.forEach(n => { marksObj[n] = true; });
+  update(ref(db, `rooms/${roomCode}/players/${uid}`), {
+    marked: marksObj,
+  }).catch(() => {});
+}
+
+function renderBoard(){
+  const calledSet = lastRoomData ? new Set(lastRoomData.deckOrder.slice(0, lastRoomData.calledIndex)) : new Set();
+  els.boardGrid.innerHTML = '';
+  myBoard.forEach((n) => {
+    const card = DECK_BY_N[n];
+    const isCalled = calledSet.has(n);
+    const cell = document.createElement('button');
+    cell.className = 'cell' + (isCalled ? '' : ' uncalled');
+    cell.setAttribute('aria-label', card.name);
+    cell.innerHTML = `
+      <img src="${card.img}" alt="${card.name}" />
+      <div class="mark-overlay ${myMarked.has(n) ? 'show' : ''}"><div class="mark-bean"></div></div>
+    `;
+    cell.addEventListener('click', () => {
+      if(!isCalled) return;
+      if(myMarked.has(n)) myMarked.delete(n); else myMarked.add(n);
+      syncMarked();
+      renderBoard();
+    });
+    els.boardGrid.appendChild(cell);
+  });
+}
+
+els.btnCall.addEventListener('click', async () => {
+  if(!lastRoomData) return;
+  const nextIndex = lastRoomData.calledIndex + 1;
+  if(nextIndex > lastRoomData.deckOrder.length) return;
+  els.btnCall.disabled = true;
+  try{
+    await update(ref(db, 'rooms/' + roomCode), { calledIndex: nextIndex });
+  }catch(e){ console.error(e); }
+});
+
+els.btnBuena.addEventListener('click', async () => {
+  if(!lastRoomData || lastRoomData.status === 'ended') return;
+  const playerSnap = await get(ref(db, `rooms/${roomCode}/players/${uid}`));
+  const pdata = playerSnap.val();
+  const myName = pdata ? pdata.name : 'Jugador';
+
+  await update(ref(db, 'rooms/' + roomCode), {
+    buenaClaim: { uid, name: myName, ts: Date.now(), status: 'checking' },
+  });
+
+  setTimeout(async () => {
+    const calledSet = new Set(lastRoomData.deckOrder.slice(0, lastRoomData.calledIndex));
+    const marked = myBoard.map(n => calledSet.has(n));
+    const won = LINES.some(line => line.every(i => marked[i]));
+
+    if(won){
+      await update(ref(db, 'rooms/' + roomCode), {
+        status: 'ended',
+        winner: { uid, name: myName },
+        buenaClaim: { uid, name: myName, ts: Date.now(), status: 'valid' },
+      });
+    } else {
+      await update(ref(db, 'rooms/' + roomCode), {
+        buenaClaim: { uid, name: myName, ts: Date.now(), status: 'invalid' },
+      });
+      setTimeout(() => {
+        update(ref(db, 'rooms/' + roomCode), { buenaClaim: null }).catch(() => {});
+      }, 3000);
+    }
+  }, 900);
+});
+
+function showStatusBanner(claim){
+  els.statusBanner.classList.add('show');
+  els.statusBanner.classList.remove('checking','valid','invalid');
+  if(claim.status === 'checking'){
+    els.statusBanner.classList.add('checking');
+    els.statusBanner.textContent = `${claim.name} canta BUENA — Verificando…`;
+  } else if(claim.status === 'valid'){
+    els.statusBanner.classList.add('valid');
+    els.statusBanner.textContent = `🏆 ¡${claim.name} ganó!`;
+  } else if(claim.status === 'invalid'){
+    els.statusBanner.classList.add('invalid');
+    els.statusBanner.textContent = `❌ Buena incorrecta — continúa la partida`;
+  }
+}
+
+els.btnCopyLink.addEventListener('click', async () => {
+  const url = `${window.location.origin}${window.location.pathname}?code=${roomCode}`;
+  try{
+    await navigator.clipboard.writeText(url);
+    els.btnCopyLink.textContent = '¡Copiado!';
+    setTimeout(() => els.btnCopyLink.textContent = 'Copiar enlace', 1800);
+  }catch(e){
+    prompt('Copia este enlace:', url);
+  }
+});
+
+els.btnLeave.addEventListener('click', () => {
+  window.location.href = window.location.pathname;
+});
+</script>
+</body>
+</html>
