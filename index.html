@@ -189,6 +189,30 @@
     font-family:system-ui,sans-serif;font-size:13px;color:var(--cream);opacity:0.55;
     background:none;border:none;text-decoration:underline;cursor:pointer;
   }
+
+  .players-progress{margin-top:22px;font-family:system-ui,sans-serif;}
+  .players-progress-title{
+    font-size:14px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);
+    margin-bottom:10px;
+  }
+  .pp-row{
+    display:flex;align-items:center;gap:10px;padding:8px 0;
+    border-bottom:1px solid rgba(217,164,65,0.15);
+  }
+  .pp-row:last-child{border-bottom:none;}
+  .pp-name{
+    font-family:Georgia,serif;font-size:14px;font-weight:700;color:var(--cream);
+    width:100px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .pp-name .pp-host-tag{font-size:10px;color:var(--gold);opacity:0.8;margin-left:4px;}
+  .pp-bar-track{flex:1;height:9px;border-radius:999px;background:rgba(0,0,0,0.25);overflow:hidden;}
+  .pp-bar-fill{
+    height:100%;border-radius:999px;
+    background:linear-gradient(90deg, var(--accent), var(--gold-light));
+    transition:width 0.5s ease;
+  }
+  .pp-bar-fill.leader{background:linear-gradient(90deg, var(--gold), #FFE7A8);box-shadow:0 0 8px rgba(217,164,65,0.6);}
+  .pp-count{font-size:12px;color:var(--gold-light);opacity:0.85;width:40px;text-align:right;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -238,6 +262,10 @@
       <button id="btnCopyLink" class="btn-copy">Copiar enlace</button>
     </div>
 
+    <div id="audioUnlockRow" class="waiting-note" style="padding-top:6px;">
+      <button id="btnUnlockAudio" class="btn-ghost" style="max-width:280px;margin:0 auto;">🔊 Activar sonido</button>
+    </div>
+
     <section class="spotlight">
       <div class="burst-wrap">
         <div class="burst"></div>
@@ -272,6 +300,11 @@
 
     <section class="board-wrap">
       <div id="boardGrid" class="board-grid"></div>
+    </section>
+
+    <section class="players-progress">
+      <div class="players-progress-title">👥 Jugadores — Progreso</div>
+      <div id="playersProgressList"></div>
     </section>
 
     <div class="leave-row">
@@ -403,6 +436,8 @@ let myBoard = [];
 let myMarked = new Set();
 let lastRoomData = null;
 let playersCountVal = 1;
+let audioUnlocked = false;
+let playersData = {}; // uid -> { name, board, marked, isHost }
 
 const els = {
   screenLanding: document.getElementById('screenLanding'),
@@ -430,6 +465,9 @@ const els = {
   btnBuena: document.getElementById('btnBuena'),
   boardGrid: document.getElementById('boardGrid'),
   btnLeave: document.getElementById('btnLeave'),
+  audioUnlockRow: document.getElementById('audioUnlockRow'),
+  btnUnlockAudio: document.getElementById('btnUnlockAudio'),
+  playersProgressList: document.getElementById('playersProgressList'),
 };
 
 function ensureAuth(){
@@ -543,10 +581,23 @@ function enterGameScreen(){
   els.roomCodeDisplay.textContent = roomCode;
   els.hostControls.classList.toggle('hidden', !isHost);
   els.guestWaitNote.classList.toggle('hidden', isHost);
+  els.audioUnlockRow.classList.toggle('hidden', audioUnlocked);
   renderBoard();
   subscribeRoom();
   subscribePlayers();
 }
+
+els.btnUnlockAudio.addEventListener('click', () => {
+  try{
+    if('speechSynthesis' in window){
+      const u = new SpeechSynthesisUtterance('Sonido activado');
+      u.lang = 'es-MX'; u.volume = 1; u.rate = 1;
+      window.speechSynthesis.speak(u);
+    }
+  }catch(e){}
+  audioUnlocked = true;
+  els.audioUnlockRow.classList.add('hidden');
+});
 
 function subscribeRoom(){
   const roomRef = ref(db, 'rooms/' + roomCode);
@@ -571,6 +622,7 @@ function subscribeRoom(){
         autoMarkCalled(data);
       }
       renderBoard();
+      renderPlayersProgress();
     }
 
     if(data.buenaClaim){
@@ -587,9 +639,39 @@ function subscribePlayers(){
   const playersRef = ref(db, `rooms/${roomCode}/players`);
   onValue(playersRef, (snap) => {
     const val = snap.val() || {};
+    playersData = val;
     playersCountVal = Object.keys(val).length;
     els.playersCount.textContent = `${playersCountVal} jugador${playersCountVal === 1 ? '' : 'es'}`;
+    renderPlayersProgress();
   });
+}
+
+function renderPlayersProgress(){
+  const calledSet = lastRoomData ? new Set(lastRoomData.deckOrder.slice(0, lastRoomData.calledIndex)) : new Set();
+  const rows = Object.values(playersData)
+    .map(p => {
+      const board = p.board || [];
+      const matched = board.filter(n => calledSet.has(n)).length;
+      return { name: p.name || 'Jugador', isHost: !!p.isHost, matched, total: board.length || 16 };
+    })
+    .sort((a, b) => b.matched - a.matched);
+
+  if(rows.length === 0){
+    els.playersProgressList.innerHTML = '';
+    return;
+  }
+  const maxMatched = rows[0].matched;
+  els.playersProgressList.innerHTML = rows.map(r => {
+    const pct = r.total ? Math.round((r.matched / r.total) * 100) : 0;
+    const isLeader = r.matched > 0 && r.matched === maxMatched;
+    return `
+      <div class="pp-row">
+        <div class="pp-name">${r.name}${r.isHost ? '<span class="pp-host-tag">HOST</span>' : ''}</div>
+        <div class="pp-bar-track"><div class="pp-bar-fill${isLeader ? ' leader' : ''}" style="width:${pct}%"></div></div>
+        <div class="pp-count">${r.matched}/${r.total}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderSpotlight(data){
@@ -654,6 +736,10 @@ function renderBoard(){
 }
 
 els.btnCall.addEventListener('click', async () => {
+  if(!audioUnlocked){
+    audioUnlocked = true;
+    els.audioUnlockRow.classList.add('hidden');
+  }
   if(!lastRoomData) return;
   const nextIndex = lastRoomData.calledIndex + 1;
   if(nextIndex > lastRoomData.deckOrder.length) return;
