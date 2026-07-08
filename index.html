@@ -155,12 +155,28 @@
     font-family:system-ui,sans-serif;font-size:14px;color:var(--gold-light);padding-bottom:6px;
   }
   .automarcar-row input{width:17px;height:17px;accent-color:var(--gold);}
-  .buena-btn{
-    width:100%;font-weight:800;font-size:18px;padding:16px;border-radius:14px;
-    border:2px solid var(--gold);background:rgba(217,164,65,0.1);color:var(--gold-light);
-    margin:6px 0 16px;min-height:56px;transition:transform 150ms ease;
+  .checkpoints-grid{
+    display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 16px;
   }
-  .buena-btn:active{transform:scale(0.97);}
+  .checkpoint-btn{
+    position:relative;padding:14px 8px;border-radius:14px;
+    border:2px solid var(--gold);background:rgba(217,164,65,0.1);color:var(--gold-light);
+    font-weight:800;font-size:14px;text-align:center;min-height:64px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    transition:transform 150ms ease;
+  }
+  .checkpoint-btn:active{transform:scale(0.96);}
+  .checkpoint-btn .cp-icon{font-size:18px;}
+  .checkpoint-btn .cp-winner{
+    font-family:Georgia,serif;font-style:italic;font-weight:400;font-size:11px;
+    color:var(--cream);opacity:0.8;margin-top:2px;
+  }
+  .checkpoint-btn.claimed{
+    border-color:rgba(217,164,65,0.3);background:rgba(0,0,0,0.2);color:rgba(245,232,211,0.5);
+    cursor:default;
+  }
+  .checkpoint-btn.claimed .cp-icon{opacity:0.5;}
+  .checkpoint-btn.chorro{border-color:var(--gold-light);box-shadow:0 0 14px rgba(217,164,65,0.25);}
   .status-banner{
     text-align:center;margin:0 0 14px;padding:14px;border-radius:12px;
     font-family:system-ui,sans-serif;font-weight:700;font-size:15px;display:none;
@@ -296,7 +312,7 @@
 
     <div id="statusBanner" class="status-banner"></div>
 
-    <button id="btnBuena" class="buena-btn">🎉 ¡BUENA!</button>
+    <div id="checkpointsGrid" class="checkpoints-grid"></div>
 
     <section class="board-wrap">
       <div id="boardGrid" class="board-grid"></div>
@@ -402,6 +418,25 @@ const LINES = [
   [0,5,10,15],[3,6,9,12],
 ];
 
+const CHECKPOINT_DEFS = {
+  buena: {
+    label: 'BUENA', icon: '🎉', ends: false,
+    check: (marked) => LINES.some(line => line.every(i => marked[i])),
+  },
+  centro: {
+    label: 'CENTRO', icon: '🎯', ends: false,
+    check: (marked) => [5,6,9,10].every(i => marked[i]),
+  },
+  esquinas: {
+    label: '4 ESQUINAS', icon: '📐', ends: false,
+    check: (marked) => [0,3,12,15].every(i => marked[i]),
+  },
+  chorro: {
+    label: 'CHORRO (Tabla llena)', icon: '🏆', ends: true,
+    check: (marked) => marked.every(Boolean),
+  },
+};
+
 function shuffle(arr){
   const a = arr.slice();
   for(let i=a.length-1;i>0;i--){
@@ -462,7 +497,7 @@ const els = {
   btnCall: document.getElementById('btnCall'),
   autoMarcarCheck: document.getElementById('autoMarcarCheck'),
   statusBanner: document.getElementById('statusBanner'),
-  btnBuena: document.getElementById('btnBuena'),
+  checkpointsGrid: document.getElementById('checkpointsGrid'),
   boardGrid: document.getElementById('boardGrid'),
   btnLeave: document.getElementById('btnLeave'),
   audioUnlockRow: document.getElementById('audioUnlockRow'),
@@ -523,6 +558,7 @@ els.btnCreateRoom.addEventListener('click', async () => {
       status: 'playing',
       winner: null,
       buenaClaim: null,
+      checkpoints: { buena: null, centro: null, esquinas: null, chorro: null },
     });
 
     myBoard = randomBoard();
@@ -583,6 +619,7 @@ function enterGameScreen(){
   els.guestWaitNote.classList.toggle('hidden', isHost);
   els.audioUnlockRow.classList.toggle('hidden', audioUnlocked);
   renderBoard();
+  renderCheckpoints();
   subscribeRoom();
   subscribePlayers();
 }
@@ -630,6 +667,8 @@ function subscribeRoom(){
     } else {
       els.statusBanner.classList.remove('show');
     }
+
+    renderCheckpoints();
 
     els.btnCall.disabled = data.calledIndex >= data.deckOrder.length || data.status === 'ended';
   });
@@ -749,50 +788,81 @@ els.btnCall.addEventListener('click', async () => {
   }catch(e){ console.error(e); }
 });
 
-els.btnBuena.addEventListener('click', async () => {
+function renderCheckpoints(){
+  const checkpoints = (lastRoomData && lastRoomData.checkpoints) || {};
+  els.checkpointsGrid.innerHTML = Object.entries(CHECKPOINT_DEFS).map(([type, def]) => {
+    const claim = checkpoints[type];
+    const claimed = !!(claim && claim.name);
+    return `
+      <button class="checkpoint-btn${claimed ? ' claimed' : ''}${type === 'chorro' ? ' chorro' : ''}" data-type="${type}" ${claimed ? 'disabled' : ''}>
+        <span class="cp-icon">${def.icon}</span>
+        <span>${def.label}</span>
+        ${claimed ? `<span class="cp-winner">Ganó: ${claim.name}</span>` : ''}
+      </button>
+    `;
+  }).join('');
+}
+
+els.checkpointsGrid.addEventListener('click', (e) => {
+  const btn = e.target.closest('.checkpoint-btn');
+  if(!btn || btn.disabled) return;
+  claimCheckpoint(btn.dataset.type);
+});
+
+async function claimCheckpoint(type){
   if(!lastRoomData || lastRoomData.status === 'ended') return;
+  const def = CHECKPOINT_DEFS[type];
+  if(!def) return;
+  const existing = lastRoomData.checkpoints && lastRoomData.checkpoints[type];
+  if(existing && existing.name) return; // already claimed by someone
+
   const playerSnap = await get(ref(db, `rooms/${roomCode}/players/${uid}`));
   const pdata = playerSnap.val();
   const myName = pdata ? pdata.name : 'Jugador';
 
   await update(ref(db, 'rooms/' + roomCode), {
-    buenaClaim: { uid, name: myName, ts: Date.now(), status: 'checking' },
+    buenaClaim: { uid, name: myName, ts: Date.now(), status: 'checking', type },
   });
 
   setTimeout(async () => {
     const calledSet = new Set(lastRoomData.deckOrder.slice(0, lastRoomData.calledIndex));
     const marked = myBoard.map(n => calledSet.has(n));
-    const won = LINES.some(line => line.every(i => marked[i]));
+    const won = def.check(marked);
 
     if(won){
-      await update(ref(db, 'rooms/' + roomCode), {
-        status: 'ended',
-        winner: { uid, name: myName },
-        buenaClaim: { uid, name: myName, ts: Date.now(), status: 'valid' },
-      });
+      const updates = {
+        [`checkpoints/${type}`]: { uid, name: myName, ts: Date.now() },
+        buenaClaim: { uid, name: myName, ts: Date.now(), status: 'valid', type },
+      };
+      if(def.ends){
+        updates.status = 'ended';
+        updates.winner = { uid, name: myName };
+      }
+      await update(ref(db, 'rooms/' + roomCode), updates);
     } else {
       await update(ref(db, 'rooms/' + roomCode), {
-        buenaClaim: { uid, name: myName, ts: Date.now(), status: 'invalid' },
+        buenaClaim: { uid, name: myName, ts: Date.now(), status: 'invalid', type },
       });
       setTimeout(() => {
         update(ref(db, 'rooms/' + roomCode), { buenaClaim: null }).catch(() => {});
       }, 3000);
     }
   }, 900);
-});
+}
 
 function showStatusBanner(claim){
+  const label = (CHECKPOINT_DEFS[claim.type] && CHECKPOINT_DEFS[claim.type].label) || 'BUENA';
   els.statusBanner.classList.add('show');
   els.statusBanner.classList.remove('checking','valid','invalid');
   if(claim.status === 'checking'){
     els.statusBanner.classList.add('checking');
-    els.statusBanner.textContent = `${claim.name} canta BUENA — Verificando…`;
+    els.statusBanner.textContent = `${claim.name} canta ${label} — Verificando…`;
   } else if(claim.status === 'valid'){
     els.statusBanner.classList.add('valid');
-    els.statusBanner.textContent = `🏆 ¡${claim.name} ganó!`;
+    els.statusBanner.textContent = `🏆 ¡${claim.name} ganó ${label}!`;
   } else if(claim.status === 'invalid'){
     els.statusBanner.classList.add('invalid');
-    els.statusBanner.textContent = `❌ Buena incorrecta — continúa la partida`;
+    els.statusBanner.textContent = `❌ ${label} incorrecta — continúa la partida`;
   }
 }
 
