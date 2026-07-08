@@ -130,6 +130,33 @@
     width:44px;height:59px;opacity:1;border:2px solid var(--gold);
     box-shadow:0 0 0 3px rgba(217,164,65,0.3), 0 6px 14px rgba(0,0,0,0.4);
   }
+
+  .unrevealed-section{
+    margin:0 0 18px;padding:16px;border-radius:16px;
+    background:
+      linear-gradient(180deg, rgba(0,0,0,0.12), rgba(0,0,0,0.04)),
+      radial-gradient(ellipse 100% 60% at 50% 0%, #6B2429, var(--bg-dark));
+    border:1px solid rgba(217,164,65,0.4);
+  }
+  .unrevealed-title{
+    font-family:Georgia,serif;font-size:17px;color:var(--gold-light);margin-bottom:4px;
+  }
+  .unrevealed-sub{
+    font-family:system-ui,sans-serif;font-size:12px;color:var(--cream);opacity:0.6;margin-bottom:12px;
+  }
+  .unrevealed-grid{
+    display:grid;grid-template-columns:repeat(auto-fill, minmax(58px, 1fr));gap:8px;
+  }
+  .unrevealed-grid .uc-card{display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .unrevealed-grid img{
+    width:100%;aspect-ratio:3/4;object-fit:cover;border-radius:8px;
+    border:1px solid rgba(245,232,211,0.25);box-shadow:0 3px 8px rgba(0,0,0,0.3);
+    filter:grayscale(15%);
+  }
+  .unrevealed-grid .uc-name{
+    font-family:system-ui,sans-serif;font-size:9px;color:var(--cream);opacity:0.7;
+    text-align:center;line-height:1.15;
+  }
   .spotlight{display:flex;flex-direction:column;align-items:center;padding:20px 0 6px;}
   .burst-wrap{position:relative;width:280px;height:373px;max-width:88vw;max-height:calc(88vw * 1.333);display:flex;align-items:center;justify-content:center;}
   .burst{position:absolute;inset:-36px;background:repeating-conic-gradient(var(--gold) 0deg 9deg, transparent 9deg 18deg);border-radius:50%;opacity:0.09;}
@@ -430,6 +457,12 @@
 
     <div id="statusBanner" class="status-banner"></div>
 
+    <section id="unrevealedSection" class="unrevealed-section hidden">
+      <div class="unrevealed-title">🃏 Cartas que no salieron</div>
+      <div class="unrevealed-sub" id="unrevealedSub">Estas cartas quedaron sin cantar</div>
+      <div id="unrevealedGrid" class="unrevealed-grid"></div>
+    </section>
+
     <button id="buenaBtn" class="buena-special-btn" data-type="buena">
       <span class="bb-icon">🏆</span>
       <span class="bb-label">¡BUENA! <span class="bb-sub">(Tabla llena)</span></span>
@@ -651,6 +684,9 @@ const els = {
   btnAuto: document.getElementById('btnAuto'),
   autoMarcarCheck: document.getElementById('autoMarcarCheck'),
   statusBanner: document.getElementById('statusBanner'),
+  unrevealedSection: document.getElementById('unrevealedSection'),
+  unrevealedSub: document.getElementById('unrevealedSub'),
+  unrevealedGrid: document.getElementById('unrevealedGrid'),
   checkpointsGrid: document.getElementById('checkpointsGrid'),
   buenaBtn: document.getElementById('buenaBtn'),
   boardGrid: document.getElementById('boardGrid'),
@@ -837,8 +873,11 @@ function subscribeRoom(){
 
     renderCheckpoints();
 
-    if(data.status === 'ended' && autoplay){
-      stopAutoplay();
+    if(data.status === 'ended'){
+      renderUnrevealedCards(data);
+      if(autoplay) stopAutoplay();
+    } else {
+      els.unrevealedSection.classList.add('hidden');
     }
 
     els.btnCall.disabled = data.calledIndex >= data.deckOrder.length || data.status === 'ended';
@@ -975,6 +1014,27 @@ function renderPlayersProgress(){
       </div>
     `;
   }).join('');
+}
+
+function renderUnrevealedCards(data){
+  const unrevealed = data.deckOrder.slice(data.calledIndex);
+  if(unrevealed.length === 0){
+    els.unrevealedSub.textContent = '¡Se cantó todo el mazo!';
+    els.unrevealedGrid.innerHTML = '';
+    els.unrevealedSection.classList.remove('hidden');
+    return;
+  }
+  els.unrevealedSub.textContent = `${unrevealed.length} carta${unrevealed.length === 1 ? '' : 's'} quedaron sin cantar`;
+  els.unrevealedGrid.innerHTML = unrevealed.map(n => {
+    const card = DECK_BY_N[n];
+    return `
+      <div class="uc-card">
+        <img src="${card.img}" alt="${card.name}" />
+        <div class="uc-name">${card.name}</div>
+      </div>
+    `;
+  }).join('');
+  els.unrevealedSection.classList.remove('hidden');
 }
 
 function renderCalledStrip(data){
