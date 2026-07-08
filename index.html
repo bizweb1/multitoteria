@@ -113,6 +113,23 @@
     background:rgba(217,164,65,0.1);color:var(--gold-light);cursor:pointer;
   }
   .players-count{font-size:13px;color:var(--gold-light);opacity:0.85;white-space:nowrap;}
+  .pot-badge{
+    font-family:system-ui,sans-serif;font-size:13px;font-weight:800;color:var(--gold-light);
+    background:rgba(217,164,65,0.12);border:1px solid rgba(217,164,65,0.35);
+    padding:6px 12px;border-radius:999px;white-space:nowrap;
+  }
+  .called-strip{
+    display:flex;gap:6px;overflow-x:auto;padding:6px 2px 14px;
+  }
+  .called-strip img{
+    width:36px;height:48px;object-fit:cover;border-radius:6px;
+    border:2px solid rgba(245,232,211,0.3);flex-shrink:0;opacity:0.6;
+    box-shadow:0 3px 6px rgba(0,0,0,0.3);
+  }
+  .called-strip img.latest{
+    width:44px;height:59px;opacity:1;border:2px solid var(--gold);
+    box-shadow:0 0 0 3px rgba(217,164,65,0.3), 0 6px 14px rgba(0,0,0,0.4);
+  }
   .spotlight{display:flex;flex-direction:column;align-items:center;padding:20px 0 6px;}
   .burst-wrap{position:relative;width:280px;height:373px;max-width:88vw;max-height:calc(88vw * 1.333);display:flex;align-items:center;justify-content:center;}
   .burst{position:absolute;inset:-36px;background:repeating-conic-gradient(var(--gold) 0deg 9deg, transparent 9deg 18deg);border-radius:50%;opacity:0.09;}
@@ -356,6 +373,10 @@
         <label for="joinNameInput">Tu nombre</label>
         <input id="joinNameInput" type="text" placeholder="Tu nombre" maxlength="24" />
       </div>
+      <div class="field">
+        <label for="joinBetInput">Apuesta (opcional)</label>
+        <input id="joinBetInput" type="number" min="0" step="1" placeholder="$0" />
+      </div>
       <button id="btnJoinRoom" class="btn-ghost">Entrar</button>
     </div>
     <div id="landingError" class="error-msg"></div>
@@ -368,6 +389,7 @@
         <div id="roomCodeDisplay" class="room-code">——————</div>
       </div>
       <div class="players-count" id="playersCount">1 jugador</div>
+      <div class="pot-badge" id="potBadge">💰 $0</div>
       <button id="btnCopyLink" class="btn-copy">Copiar enlace</button>
     </div>
 
@@ -398,6 +420,8 @@
       <button id="btnAuto" class="btn-auto">▶ Automático</button>
     </div>
     <div id="guestWaitNote" class="waiting-note hidden">El host está cantando las cartas…</div>
+
+    <section id="calledStrip" class="called-strip"></section>
 
     <div class="automarcar-row">
       <input type="checkbox" id="autoMarcarCheck" />
@@ -603,13 +627,17 @@ const els = {
   screenLanding: document.getElementById('screenLanding'),
   screenGame: document.getElementById('screenGame'),
   hostNameInput: document.getElementById('hostNameInput'),
+  hostBetInput: document.getElementById('hostBetInput'),
   btnCreateRoom: document.getElementById('btnCreateRoom'),
   joinCodeInput: document.getElementById('joinCodeInput'),
   joinNameInput: document.getElementById('joinNameInput'),
+  joinBetInput: document.getElementById('joinBetInput'),
   btnJoinRoom: document.getElementById('btnJoinRoom'),
   landingError: document.getElementById('landingError'),
   roomCodeDisplay: document.getElementById('roomCodeDisplay'),
   playersCount: document.getElementById('playersCount'),
+  potBadge: document.getElementById('potBadge'),
+  calledStrip: document.getElementById('calledStrip'),
   btnCopyLink: document.getElementById('btnCopyLink'),
   cardFrame: document.getElementById('cardFrame'),
   spotlightImg: document.getElementById('spotlightImg'),
@@ -696,8 +724,9 @@ els.btnCreateRoom.addEventListener('click', async () => {
     });
 
     myBoard = randomBoard();
+    const hostBet = Math.max(0, parseFloat(els.hostBetInput.value) || 0);
     await set(ref(db, `rooms/${code}/players/${uid}`), {
-      name, board: myBoard, marked: {}, isHost: true, joinedAt: serverTimestamp(),
+      name, board: myBoard, marked: {}, isHost: true, bet: hostBet, joinedAt: serverTimestamp(),
     });
 
     roomCode = code; isHost = true; myName = name;
@@ -729,8 +758,9 @@ els.btnJoinRoom.addEventListener('click', async () => {
     }
     const roomData = snap.val();
     myBoard = randomBoard();
+    const joinBet = Math.max(0, parseFloat(els.joinBetInput.value) || 0);
     await set(ref(db, `rooms/${code}/players/${uid}`), {
-      name, board: myBoard, marked: {}, isHost: false, joinedAt: serverTimestamp(),
+      name, board: myBoard, marked: {}, isHost: false, bet: joinBet, joinedAt: serverTimestamp(),
     });
     roomCode = code; isHost = (roomData.hostUid === uid); myName = name;
     enterGameScreen();
@@ -782,6 +812,7 @@ function subscribeRoom(){
     lastRoomData = data;
 
     renderSpotlight(data);
+    renderCalledStrip(data);
 
     if(data.calledIndex > prevIndex){
       const newCard = DECK_BY_N[data.deckOrder[data.calledIndex - 1]];
@@ -821,8 +852,13 @@ function subscribePlayers(){
     playersData = val;
     playersCountVal = Object.keys(val).length;
     els.playersCount.textContent = `${playersCountVal} jugador${playersCountVal === 1 ? '' : 'es'}`;
+    els.potBadge.textContent = `💰 $${getTotalPot().toFixed(2)}`;
     renderPlayersProgress();
   });
+}
+
+function getTotalPot(){
+  return Object.values(playersData).reduce((sum, p) => sum + (Number(p.bet) || 0), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -918,6 +954,14 @@ function renderPlayersProgress(){
         <div class="pp-count">${r.matched}/${r.total}</div>
       </div>
     `;
+  }).join('');
+}
+
+function renderCalledStrip(data){
+  const called = data.deckOrder.slice(0, data.calledIndex).slice().reverse();
+  els.calledStrip.innerHTML = called.map((n, i) => {
+    const card = DECK_BY_N[n];
+    return `<img src="${card.img}" alt="${card.name}" title="${card.name}" class="${i === 0 ? 'latest' : ''}" />`;
   }).join('');
 }
 
@@ -1045,7 +1089,8 @@ function renderCheckpoints(){
   if(buenaClaimed){
     const w = document.createElement('span');
     w.className = 'bb-winner';
-    w.textContent = `Ganó: ${buenaClaim.name}`;
+    const amt = (buenaClaim.amount && buenaClaim.amount > 0) ? ` — $${buenaClaim.amount.toFixed(2)}` : '';
+    w.textContent = `Ganó: ${buenaClaim.name}${amt}`;
     els.buenaBtn.appendChild(w);
   }
 
@@ -1058,7 +1103,7 @@ function renderCheckpoints(){
       <button class="checkpoint-btn${claimed ? ' claimed' : ''}" data-type="${type}" ${claimed ? 'disabled' : ''}>
         <span class="cp-icon">${def.icon}</span>
         <span>${def.label}</span>
-        ${claimed ? `<span class="cp-winner">Ganó: ${claim.name}</span>` : ''}
+        ${claimed ? `<span class="cp-winner">Ganó: ${claim.name}${claim.amount ? ` — $${claim.amount.toFixed(2)}` : ''}</span>` : ''}
       </button>
     `;
   }).join('');
@@ -1096,13 +1141,16 @@ async function claimCheckpoint(type){
     const won = def.check(marked);
 
     if(won){
+      const totalPot = getTotalPot();
+      const payoutPct = def.ends ? 0.70 : 0.10;
+      const payout = totalPot * payoutPct;
       const updates = {
-        [`checkpoints/${type}`]: { uid, name: myName, ts: Date.now() },
-        buenaClaim: { uid, name: myName, ts: Date.now(), status: 'valid', type },
+        [`checkpoints/${type}`]: { uid, name: myName, ts: Date.now(), amount: payout },
+        buenaClaim: { uid, name: myName, ts: Date.now(), status: 'valid', type, amount: payout },
       };
       if(def.ends){
         updates.status = 'ended';
-        updates.winner = { uid, name: myName };
+        updates.winner = { uid, name: myName, amount: payout };
       }
       await update(ref(db, 'rooms/' + roomCode), updates);
     } else {
@@ -1125,7 +1173,8 @@ function showStatusBanner(claim){
     els.statusBanner.textContent = `${claim.name} canta ${label} — Verificando…`;
   } else if(claim.status === 'valid'){
     els.statusBanner.classList.add('valid');
-    els.statusBanner.textContent = `🏆 ¡${claim.name} ganó ${label}!`;
+    const amountText = (claim.amount && claim.amount > 0) ? ` — Gana $${claim.amount.toFixed(2)}` : '';
+    els.statusBanner.textContent = `🏆 ¡${claim.name} ganó ${label}!${amountText}`;
   } else if(claim.status === 'invalid'){
     els.statusBanner.classList.add('invalid');
     els.statusBanner.textContent = `❌ ${label} incorrecta — continúa la partida`;
